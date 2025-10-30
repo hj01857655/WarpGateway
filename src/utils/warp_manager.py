@@ -8,6 +8,13 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# 平台相关依赖（仅在 Windows 使用）
+if sys.platform == 'win32':
+    try:
+        import winreg  # type: ignore
+    except Exception:  # pragma: no cover
+        winreg = None  # type: ignore
+
 # 可选的自定义路径（由 GUI 设置）
 _CUSTOM_WARP_PATH: Optional[Path] = None
 
@@ -19,8 +26,94 @@ def set_custom_warp_path(path: str | Path) -> None:
     _CUSTOM_WARP_PATH = p if p.exists() else None
 
 
+def _query_registry_for_warp() -> Optional[Path]:
+    """在注册表中查找 Warp 可执行路径（Windows）"""
+    if sys.platform != 'win32' or winreg is None:  # type: ignore
+        return None
+
+    # 1) App Paths: HKLM/HKCU ...\App Paths\warp.exe
+    app_paths = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\warp.exe"
+    for root_name, root in [("HKCU", winreg.HKEY_CURRENT_USER), ("HKLM", winreg.HKEY_LOCAL_MACHINE)]:  # type: ignore
+        for flag in (0, getattr(winreg, 'KEY_WOW64_64KEY', 0), getattr(winreg, 'KEY_WOW64_32KEY', 0)):
+            try:
+                key = winreg.OpenKey(root, app_paths, 0, winreg.KEY_READ | flag)  # type: ignore
+                try:
+                    # 默认值通常是完整路径
+                    val, _ = winreg.QueryValueEx(key, None)  # type: ignore
+                    p = Path(val.strip('"'))
+                    if p.exists():
+                        logger.info(f"✅ 从注册表找到 Warp: {root_name}\\{app_paths}")
+                        return p
+                    # 或者组合 Path + warp.exe
+                    path_val, _ = winreg.QueryValueEx(key, 'Path')  # type: ignore
+                    p = Path(path_val) / 'warp.exe'
+                    if p.exists():
+                        return p
+                finally:
+                    winreg.CloseKey(key)  # type: ignore
+            except OSError:
+                pass
+
+    # 2) Uninstall keys: 查找包含 "Warp" 的 DisplayName
+    uninstall_paths = [
+        r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+    ]
+    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):  # type: ignore
+        for sub in uninstall_paths:
+            for flag in (0, getattr(winreg, 'KEY_WOW64_64KEY', 0), getattr(winreg, 'KEY_WOW64_32KEY', 0)):
+                try:
+                    base = winreg.OpenKey(root, sub, 0, winreg.KEY_READ | flag)  # type: ignore
+                except OSError:
+                    continue
+                try:
+                    i = 0
+                    while True:
+                        try:
+                            name = winreg.EnumKey(base, i)  # type: ignore
+                            i += 1
+                        except OSError:
+                            break
+                        try:
+                            key = winreg.OpenKey(base, name, 0, winreg.KEY_READ | flag)  # type: ignore
+                        except OSError:
+                            continue
+                        try:
+                            try:
+                                display, _ = winreg.QueryValueEx(key, 'DisplayName')  # type: ignore
+                            except OSError:
+                                display = ''
+                            if display and 'warp' in str(display).lower():
+                                # 尝试 InstallLocation
+                                try:
+                                    loc, _ = winreg.QueryValueEx(key, 'InstallLocation')  # type: ignore
+                                    p = Path(loc) / 'warp.exe'
+                                    if p.exists():
+                                        logger.info(f"✅ 从 Uninstall 注册表找到 Warp (InstallLocation): {root_name}\\{sub}\\{name}")
+                                        return p
+                                except OSError:
+                                    pass
+                                # 尝试 DisplayIcon
+                                try:
+                                    icon, _ = winreg.QueryValueEx(key, 'DisplayIcon')  # type: ignore
+                                    # 形如: "C:\\...\\warp.exe",0 或 C:\\...\\warp.exe
+                                    icon_path = str(icon).split(',')[0].strip().strip('"')
+                                    p = Path(icon_path)
+                                    if p.exists():
+                                        logger.info(f"✅ 从 Uninstall 注册表找到 Warp (DisplayIcon): {root_name}\\{sub}\\{name}")
+                                        return p
+                                except OSError:
+                                    pass
+                        finally:
+                            winreg.CloseKey(key)  # type: ignore
+                finally:
+                    winreg.CloseKey(base)  # type: ignore
+
+    return None
+
+
 def get_warp_path() -> Path:
-    """获取 Warp 可执行文件路径（优先使用自定义/环境变量）"""
+    """获取 Warp 可执行文件路径（优先使用 自定义 > 环境变量 > 注册表 > 默认路径）"""
     # 1) 自定义路径
     if _CUSTOM_WARP_PATH and _CUSTOM_WARP_PATH.exists():
         return _CUSTOM_WARP_PATH
@@ -29,8 +122,13 @@ def get_warp_path() -> Path:
     env_path = os.environ.get('WARP_PATH')
     if env_path and Path(env_path).exists():
         return Path(env_path)
+
+    # 3) 注册表 (Windows)
+    reg_path = _query_registry_for_warp()
+    if reg_path and reg_path.exists():
+        return reg_path
     
-    # 3) 默认路径
+    # 4) 默认路径
     if sys.platform == 'win32':
         # Windows 默认路径
         warp_path = Path.home() / 'AppData' / 'Local' / 'Programs' / 'Warp' / 'warp.exe'
