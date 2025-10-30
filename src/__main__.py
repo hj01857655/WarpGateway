@@ -1,6 +1,3 @@
-"""允许使用 python -m src 运行"""
+"""仅支持 GUI 方式运行"""
 
-from .core.proxy import main
-
-if __name__ == "__main__":
-    main()
+print("请使用 GUI 启动: python run_gui.py")

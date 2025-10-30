@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from .tray import TrayApp
+from .window import MainWindow
 
 
 def setup_logging():
@@ -28,9 +28,10 @@ def main():
     setup_logging()
     
     app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)  # 关闭窗口不退出程序
     
-    tray = TrayApp()
+    # 创建主窗口
+    window = MainWindow()
+    window.show()
     
     sys.exit(app.exec())
 

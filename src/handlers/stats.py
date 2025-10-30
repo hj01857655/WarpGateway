@@ -81,3 +81,7 @@ class StatsHandler(BaseInterceptor):
         }
         self.start_time = datetime.now()
         logger.info("🔄 Statistics reset")
+
+
+# 别名，用于 GUI
+StatsManager = StatsHandler

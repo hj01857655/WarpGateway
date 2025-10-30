@@ -10,7 +10,7 @@ from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import QTimer, Signal, QObject
 
 from ..core.config import Config
-from ..handlers.stats import StatsManager
+from ..utils.cert_manager import check_cert_installed
 
 
 class ProxyThread(Thread):
@@ -61,7 +61,6 @@ class TrayApp(QSystemTrayIcon):
         
         # 加载配置
         self.config = Config()
-        self.stats = StatsManager()
         self.proxy_thread = None
         self.signals = TraySignals()
         
@@ -79,6 +78,9 @@ class TrayApp(QSystemTrayIcon):
         self.timer = QTimer()
         self.timer.timeout.connect(self._update_status)
         self.timer.start(2000)  # 每2秒更新
+        
+        # 异步检查证书（启动后1秒检查，不阻塞界面）
+        QTimer.singleShot(1000, self._check_cert_async)
     
     def _create_icon(self):
         """创建托盘图标（使用内置图标）"""
@@ -167,14 +169,8 @@ class TrayApp(QSystemTrayIcon):
         """显示状态信息"""
         status = "代理运行中" if (self.proxy_thread and self.proxy_thread.running) else "代理已停止"
         
-        stats = self.stats.get_stats()
         message = f"""状态: {status}
 监听地址: {self.config.proxy.host}:{self.config.proxy.port}
-
-统计信息:
-总请求数: {stats.get('total_requests', 0)}
-成功: {stats.get('success_count', 0)}
-失败: {stats.get('error_count', 0)}
 """
         
         self.showMessage('WarpGateway 状态', message, QSystemTrayIcon.Information, 5000)
@@ -210,13 +206,26 @@ class TrayApp(QSystemTrayIcon):
         except Exception as e:
             self.showMessage('WarpGateway', f'配置加载失败: {str(e)}', QSystemTrayIcon.Critical, 3000)
     
+    def _check_cert_async(self):
+        """异步检查证书（在后台线程中执行）"""
+        def check():
+            import logging
+            logger = logging.getLogger(__name__)
+            try:
+                if not check_cert_installed():
+                    logger.warning("⚠️ 检测到 mitmproxy 证书未安装")
+                    logger.info("📝 请手动运行证书安装工具：python -m src.utils.cert_manager")
+            except Exception as e:
+                logger.error(f"证书检查错误: {e}")
+        
+        # 在后台线程中执行
+        Thread(target=check, daemon=True).start()
+    
     def _update_status(self):
         """更新状态"""
         if self.proxy_thread and self.proxy_thread.running:
-            stats = self.stats.get_stats()
             tooltip = f"""WarpGateway - 运行中
-地址: {self.config.proxy.host}:{self.config.proxy.port}
-请求数: {stats.get('total_requests', 0)}"""
+地址: {self.config.proxy.host}:{self.config.proxy.port}"""
             self.setToolTip(tooltip)
     
     def _quit(self):

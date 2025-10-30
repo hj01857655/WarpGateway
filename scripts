@@ -1,0 +1,24 @@
+@echo off
+chcp 65001 >nul
+title 安装 mitmproxy 证书
+
+echo ========================================
+echo   WarpGateway 证书安装工具
+echo ========================================
+echo.
+
+cd /d "%~dp0"
+
+if exist .venv\Scripts\activate.bat (
+    call .venv\Scripts\activate.bat
+    echo 正在安装证书...
+    echo.
+    python -m src.utils.cert_manager
+    echo.
+    pause
+) else (
+    echo 错误: 未找到虚拟环境
+    echo 请先运行: pip install -e .
+    echo.
+    pause
+)

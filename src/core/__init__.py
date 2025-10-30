@@ -2,6 +2,5 @@
 
 from .config import Config
 from .interceptor import BaseInterceptor
-from .proxy import ProxyServer
 
-__all__ = ["Config", "BaseInterceptor", "ProxyServer"]
+__all__ = ["Config", "BaseInterceptor"]

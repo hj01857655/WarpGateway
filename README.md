@@ -18,19 +18,42 @@
 pip install -e .
 ```
 
+### 证书安装
+
+mitmproxy 需要安装 CA 证书才能拦截 HTTPS 请求。
+
+**自动安装（推荐）：**
+
+Windows 双击运行：`安装证书.bat`
+
+或命令行：
+```bash
+python -m src.utils.cert_manager
+```
+
+**手动安装：**
+1. 证书位置：`%USERPROFILE%\.mitmproxy\mitmproxy-ca-cert.cer`
+2. 双击证书文件
+3. 选择“安装证书”
+4. 选择“将所有的证书放入下列存储”
+5. 浏览并选择“受信任的根证书颁发机构”
+6. 点击“完成”
+
 ## 使用方法
 
-### 基本使用
+### 启动 GUI
 
 ```bash
-python -m src.proxy
+python run_gui.py
 ```
 
-### 使用自定义配置
+或 Windows 双击：`启动.bat`
 
-```bash
-python -m src.proxy --config config.yaml
-```
+### 操作步骤
+
+1. 右键托盘图标 → “启动代理”
+2. 配置浏览器代理为 `127.0.0.1:8080`
+3. 使用 Warp.dev
 
 ### 配置 Warp 客户端
 
