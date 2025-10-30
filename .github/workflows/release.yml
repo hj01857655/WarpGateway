@@ -147,16 +147,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
 
       - name: Sync to public repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 添加公开仓库
+          # 添加公开仓库并推送
           git remote add public https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/${{ secrets.PUBLIC_REPO }}.git
-          
-          # 推送 README 和 LICENSE
           git push public HEAD:main --force
-        env:
-          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
