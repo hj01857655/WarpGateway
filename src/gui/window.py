@@ -16,7 +16,7 @@ from PySide6.QtGui import QFont, QCursor
 from ..core.config import Config
 from ..utils.cert_manager import check_cert_installed, install_cert
 from ..utils.warp_manager import (
-    launch_warp, restart_warp, get_warp_path, set_custom_warp_path
+    launch_warp, restart_warp, get_warp_path, set_custom_warp_path, get_warp_version
 )
 
 
@@ -127,6 +127,12 @@ class MainWindow(QMainWindow):
         warp_path_layout.addWidget(warp_browse_btn)
         
         layout.addLayout(warp_path_layout)
+        
+        # Warp 版本显示
+        warp_version = get_warp_version()
+        version_text = f'Warp 版本: {warp_version}' if warp_version else 'Warp 版本: 未检测到'
+        self.warp_version_label = QLabel(version_text)
+        layout.addWidget(self.warp_version_label)
         
         # 按钮
         main_layout = QHBoxLayout()

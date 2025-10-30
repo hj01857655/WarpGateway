@@ -59,7 +59,7 @@ def _query_registry_for_warp() -> Optional[Path]:
         r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
         r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
     ]
-    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):  # type: ignore
+    for root_name2, root in [("HKCU", winreg.HKEY_CURRENT_USER), ("HKLM", winreg.HKEY_LOCAL_MACHINE)]:  # type: ignore
         for sub in uninstall_paths:
             for flag in (0, getattr(winreg, 'KEY_WOW64_64KEY', 0), getattr(winreg, 'KEY_WOW64_32KEY', 0)):
                 try:
@@ -89,7 +89,7 @@ def _query_registry_for_warp() -> Optional[Path]:
                                     loc, _ = winreg.QueryValueEx(key, 'InstallLocation')  # type: ignore
                                     p = Path(loc) / 'warp.exe'
                                     if p.exists():
-                                        logger.info(f"✅ 从 Uninstall 注册表找到 Warp (InstallLocation): {root_name}\\{sub}\\{name}")
+                                        logger.info(f"✅ 从 Uninstall 注册表找到 Warp (InstallLocation): {root_name2}\\{sub}\\{name}")
                                         return p
                                 except OSError:
                                     pass
@@ -100,7 +100,7 @@ def _query_registry_for_warp() -> Optional[Path]:
                                     icon_path = str(icon).split(',')[0].strip().strip('"')
                                     p = Path(icon_path)
                                     if p.exists():
-                                        logger.info(f"✅ 从 Uninstall 注册表找到 Warp (DisplayIcon): {root_name}\\{sub}\\{name}")
+                                        logger.info(f"✅ 从 Uninstall 注册表找到 Warp (DisplayIcon): {root_name2}\\{sub}\\{name}")
                                         return p
                                 except OSError:
                                     pass
@@ -146,6 +146,55 @@ def is_warp_installed():
     """检查 Warp 是否已安装"""
     warp_path = get_warp_path()
     return warp_path.exists()
+
+
+def get_warp_version() -> Optional[str]:
+    """从注册表获取 Warp 版本号"""
+    if sys.platform != 'win32' or winreg is None:  # type: ignore
+        return None
+    
+    # 尝试 HKCU 和 HKLM
+    uninstall_paths = [
+        r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+    ]
+    
+    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):  # type: ignore
+        for sub in uninstall_paths:
+            for flag in (0, getattr(winreg, 'KEY_WOW64_64KEY', 0)):
+                try:
+                    base = winreg.OpenKey(root, sub, 0, winreg.KEY_READ | flag)  # type: ignore
+                except OSError:
+                    continue
+                try:
+                    i = 0
+                    while True:
+                        try:
+                            name = winreg.EnumKey(base, i)  # type: ignore
+                            i += 1
+                        except OSError:
+                            break
+                        try:
+                            key = winreg.OpenKey(base, name, 0, winreg.KEY_READ | flag)  # type: ignore
+                        except OSError:
+                            continue
+                        try:
+                            try:
+                                display, _ = winreg.QueryValueEx(key, 'DisplayName')  # type: ignore
+                            except OSError:
+                                display = ''
+                            if display and 'warp' in str(display).lower():
+                                try:
+                                    version, _ = winreg.QueryValueEx(key, 'DisplayVersion')  # type: ignore
+                                    return str(version)
+                                except OSError:
+                                    pass
+                        finally:
+                            winreg.CloseKey(key)  # type: ignore
+                finally:
+                    winreg.CloseKey(base)  # type: ignore
+    
+    return None
 
 
 def launch_warp():
