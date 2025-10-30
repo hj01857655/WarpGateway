@@ -51,6 +51,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install nuitka ordered-set zstandard
           pip install -e .
+          pip install mitmproxy pyyaml PySide6
 
       - name: Build with Nuitka
         run: |
@@ -59,8 +60,14 @@ jobs:
             --enable-plugin=pyside6 `
             --follow-imports `
             --include-package=mitmproxy `
-            --include-package=warp_gateway `
-            --include-data-dir=src=src `
+            --include-package=yaml `
+            --include-package=PySide6 `
+            --include-package=shiboken6 `
+            --include-package-data=mitmproxy `
+            --include-data-files=config.yaml=config.yaml `
+            --nofollow-import-to=pytest `
+            --nofollow-import-to=black `
+            --nofollow-import-to=ruff `
             --company-name="WarpGateway" `
             --product-name="WarpGateway" `
             --file-version="${{ github.ref_name }}" `
