@@ -67,3 +67,23 @@ class Config:
     @property
     def streaming_paths(self) -> List[str]:
         return self.config.get("streaming", {}).get("paths", [])
+    
+    @property
+    def upstream(self) -> str:
+        """默认上游代理"""
+        return self.config.get("proxy", {}).get("upstream", "")
+    
+    @property
+    def upstream_routes(self) -> List[Dict[str, str]]:
+        """条件上游代理路由"""
+        return self.config.get("proxy", {}).get("upstream_routes", [])
+    
+    def get_upstream_for_url(self, url: str) -> str:
+        """根据 URL 获取对应的上游代理"""
+        # 先检查条件路由
+        for route in self.upstream_routes:
+            pattern = route.get("pattern", "")
+            if pattern and pattern in url:
+                return route.get("upstream", "")
+        # 返回默认上游代理
+        return self.upstream

@@ -5,6 +5,14 @@ proxy:
   host: "0.0.0.0"
   # 代理端口
   port: 8080
+  # 默认上游代理（所有请求都走，可留空）
+  upstream: ""
+  # 条件路由：特定 URL 走上游代理
+  upstream_routes:
+    # Firebase token 刷新接口走 7897 代理
+    - pattern: "securetoken.googleapis.com"  # 匹配 Firebase token API
+      upstream: "http://127.0.0.1:7897"
+    # 可添加更多路由
   # 是否启用 SSL 拦截
   ssl_insecure: false
 
