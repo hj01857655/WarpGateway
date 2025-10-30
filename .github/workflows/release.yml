@@ -1,0 +1,162 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - dev
+  delete:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # 删除旧的 release 和 tag
+  cleanup:
+    if: github.event_name == 'delete' && startsWith(github.event.ref, 'v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete release in private repo
+        continue-on-error: true
+        run: |
+          gh release delete ${{ github.event.ref }} -y --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete release in public repo
+        continue-on-error: true
+        run: |
+          gh release delete ${{ github.event.ref }} -y --repo ${{ secrets.PUBLIC_REPO }}
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+
+  # 构建并发布
+  build-and-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install nuitka ordered-set zstandard
+          pip install -e .
+
+      - name: Build with Nuitka
+        run: |
+          python -m nuitka --standalone --onefile `
+            --windows-console-mode=attach `
+            --enable-plugin=pyside6 `
+            --follow-imports `
+            --include-package=mitmproxy `
+            --include-package=warp_gateway `
+            --include-data-dir=src=src `
+            --company-name="WarpGateway" `
+            --product-name="WarpGateway" `
+            --file-version="${{ github.ref_name }}" `
+            --product-version="${{ github.ref_name }}" `
+            --file-description="Warp+ Traffic Forward Proxy Gateway" `
+            --output-filename=WarpGateway.exe `
+            src/__main__.py
+
+      - name: Delete existing release and tag in private repo
+        continue-on-error: true
+        run: |
+          gh release delete ${{ github.ref_name }} -y --repo ${{ github.repository }}
+          git push --delete origin ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete existing release and tag in public repo
+        continue-on-error: true
+        run: |
+          gh release delete ${{ github.ref_name }} -y --repo ${{ secrets.PUBLIC_REPO }}
+          git push https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/${{ secrets.PUBLIC_REPO }}.git --delete ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+
+      - name: Create Release in private repo
+        id: create_release_private
+        uses: softprops/action-gh-release@v2
+        with:
+          files: WarpGateway.exe
+          body: |
+            ## WarpGateway ${{ github.ref_name }}
+            
+            ### 功能特性
+            - Warp+ 流量转发代理
+            - 支持多账号轮换
+            - 请求统计和日志
+            - 插件化架构
+            
+            ### 使用说明
+            1. 下载 `WarpGateway.exe`
+            2. 编辑 `config.yaml` 配置文件
+            3. 运行 `WarpGateway.exe`
+            4. 浏览器设置代理为 `127.0.0.1:8080`
+            
+            ### 技术交流
+            QQ群：[123456789](https://qm.qq.com/q/xxxxx)
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release in public repo
+        uses: softprops/action-gh-release@v2
+        with:
+          files: WarpGateway.exe
+          body: |
+            ## WarpGateway ${{ github.ref_name }}
+            
+            ### 功能特性
+            - Warp+ 流量转发代理
+            - 支持多账号轮换
+            - 请求统计和日志
+            - 插件化架构
+            
+            ### 使用说明
+            1. 下载 `WarpGateway.exe`
+            2. 编辑 `config.yaml` 配置文件
+            3. 运行 `WarpGateway.exe`
+            4. 浏览器设置代理为 `127.0.0.1:8080`
+            
+            ### 技术交流
+            QQ群：[123456789](https://qm.qq.com/q/xxxxx)
+          draft: false
+          prerelease: false
+          repository: ${{ secrets.PUBLIC_REPO }}
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
+
+  # 同步文档到公开仓库
+  sync-docs:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync to public repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 添加公开仓库
+          git remote add public https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/${{ secrets.PUBLIC_REPO }}.git
+          
+          # 推送 README 和 LICENSE
+          git push public HEAD:main --force
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}

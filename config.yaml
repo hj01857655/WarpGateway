@@ -1,0 +1,45 @@
+# WarpGateway 配置文件
+
+proxy:
+  # 代理监听地址
+  host: "0.0.0.0"
+  # 代理端口
+  port: 8080
+  # 是否启用 SSL 拦截
+  ssl_insecure: false
+
+# 拦截规则配置
+rules:
+  # 拦截的请求（返回 403）
+  block:
+    # Warp Sentry 错误上报
+    - "o540343.ingest.sentry.io"
+    # Warp 数据分析
+    - "dataplane.rudderstack.com"
+    # Warp 应用内分析和代理
+    - "app.warp.dev/analytics/block"
+    - "app.warp.dev/proxy/sentry"
+    # 其他可选拦截（取消注释以启用）
+    # - "api.warp.dev/v1/billing"
+    # - "api.warp.dev/v1/subscription"
+  
+  # 允许通过的请求
+  allow: []
+  
+  # 仅记录日志但不拦截
+  log_only: []
+
+# 流式响应配置
+streaming:
+  # 需要启用流式响应的路径
+  paths:
+    - "/ai/multi-agent"      # Warp AI 多智能体对话
+
+# 日志配置
+logging:
+  # 日志级别: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  # 日志文件路径
+  file: "warp_gateway.log"
+  # 是否输出到控制台
+  console: true
